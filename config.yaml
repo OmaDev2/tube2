@@ -1,0 +1,20 @@
+# Configuración de la aplicación
+app:
+  title: "Video Tube Generator"
+  debug: false
+
+# Configuración de servicios de IA
+ai:
+  openai_api_key: ""
+  replicate_api_key: ""
+
+# Configuración de almacenamiento
+storage:
+  type: "local"  # o "firebase"
+  local_path: "./data"
+  firebase_config: {}
+
+# Configuración de video
+video:
+  default_resolution: "1080p"
+  default_fps: 30 

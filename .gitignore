@@ -1,0 +1,29 @@
+# Entorno virtual
+venv/
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos de configuración y logs
+.env
+*.env
+*.log
+
+# Archivos de Streamlit
+.streamlit/
+
+# Archivos de datos
+/data/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de Jupyter
+.ipynb_checkpoints/
+
+# Otros
+*.sqlite3 
