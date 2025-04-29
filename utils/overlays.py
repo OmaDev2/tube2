@@ -77,44 +77,41 @@ class OverlayManager:
             return False
     
     def optimize_overlay(self, overlay_clip: VideoFileClip, has_alpha: bool) -> VideoFileClip:
-        """Optimiza el overlay según si tiene canal alpha o no."""
-        if has_alpha:
-            # Para overlays con alpha, mantenemos la transparencia original
-            return overlay_clip
-        else:
-            # Para overlays sin alpha, aplicamos una máscara de luminosidad
-            def make_mask(frame):
-                # Convertir a escala de grises
-                gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-                # Normalizar
-                mask = gray.astype(float) / 255.0
-                return mask
-            return overlay_clip.set_mask(overlay_clip.fl_image(make_mask))
+        """Simplificado: solo devuelve el overlay tal cual, sin canal alpha ni máscara."""
+        return overlay_clip
     
     def apply_overlays(
         self,
         base_clip: VideoFileClip,
         overlays: List[Tuple[str, float, float, float]]
     ) -> VideoFileClip:
-        """Aplica una lista de overlays al clip base."""
+        print(f"[DEBUG] Entrando en apply_overlays con overlays: {overlays}")
         if not overlays:
+            print("[DEBUG] No hay overlays para aplicar.")
             return base_clip
         
         overlay_clips = []
         
         for overlay_name, opacity, start_time, duration in overlays:
             overlay_path = os.path.join(self.overlays_dir, overlay_name)
+            print(f"[DEBUG] Procesando overlay: {overlay_name} en {overlay_path}")
             if not os.path.exists(overlay_path):
-                print(f"Overlay no encontrado: {overlay_path}")
+                print(f"[DEBUG] Overlay no encontrado: {overlay_path}")
                 continue
             
             try:
                 # Cargar el overlay
                 overlay_clip = VideoFileClip(overlay_path)
+                print(f"[DEBUG] Overlay {overlay_name} cargado correctamente.")
+                
+                # Redimensionar overlay al tamaño del clip base
+                def resize_frame(frame):
+                    return cv2.resize(frame, (base_clip.w, base_clip.h), interpolation=cv2.INTER_LINEAR)
+                overlay_clip = overlay_clip.fl_image(resize_frame)
                 
                 # Detectar si tiene canal alpha
                 has_alpha = self.has_alpha_channel(overlay_path)
-                print(f"Overlay {overlay_name} - Tiene alpha: {has_alpha}")
+                print(f"[DEBUG] Overlay {overlay_name} - Tiene alpha: {has_alpha}")
                 
                 # Optimizar el overlay según su tipo
                 overlay_clip = self.optimize_overlay(overlay_clip, has_alpha)
@@ -127,14 +124,17 @@ class OverlayManager:
                     overlay_clip = overlay_clip.set_opacity(opacity)
                 
                 overlay_clips.append(overlay_clip)
+                print(f"[DEBUG] Overlay {overlay_name} añadido a overlay_clips.")
                 
             except Exception as e:
-                print(f"Error al procesar overlay {overlay_name}: {e}")
+                print(f"[DEBUG] Error al procesar overlay {overlay_name}: {e}")
                 continue
         
         if not overlay_clips:
+            print("[DEBUG] Ningún overlay fue añadido. Devolviendo base_clip.")
             return base_clip
         
         # Combinar todos los overlays con el clip base
         final_clip = CompositeVideoClip([base_clip] + overlay_clips)
+        print("[DEBUG] Overlays aplicados correctamente.")
         return final_clip 
