@@ -154,6 +154,11 @@ else:
         with col2:
             # Opciones de generación
             st.subheader("Opciones")
+            ai_model = st.selectbox(
+                "Modelo IA para guion",
+                ["gemini-pro", "gpt-3.5-turbo", "gpt-4", "claude-instant", "llama3 (local)"],
+                index=0
+            )
             tone = st.select_slider(
                 "Tono", 
                 options=["Formal", "Informativo", "Casual", "Entusiasta", "Humorístico"]
@@ -164,6 +169,42 @@ else:
             )
             st.caption(f"Usando modelo: {ai_model}")
         
+        # Prompts IA
+        st.subheader("Prompts para IA")
+        default_system_prompt = (
+            "Eres un guionista experto en videos de YouTube. Escribe guiones atractivos, estructurados y con gancho para la audiencia hispanohablante."
+        )
+        default_user_prompt = (
+            "Crea un guion para un video titulado: '{titulo}'.\n"
+            "Contexto adicional: '{contexto}'.\n"
+            "El tono debe ser {tono} y la longitud {longitud}.\n"
+            "Incluye introducción, desarrollo y conclusión."
+        )
+        system_prompt = st.text_area(
+            "System Prompt (rol de la IA)",
+            value=current_project.get("system_prompt", default_system_prompt),
+            height=80
+        )
+        if system_prompt != current_project.get("system_prompt"):
+            current_project["system_prompt"] = system_prompt
+        user_prompt = st.text_area(
+            "User Prompt (petición)",
+            value=current_project.get("user_prompt", default_user_prompt),
+            height=120
+        )
+        if user_prompt != current_project.get("user_prompt"):
+            current_project["user_prompt"] = user_prompt
+        
+        # Vista previa del prompt final
+        st.markdown("**Vista previa del prompt final:**")
+        prompt_preview = user_prompt.format(
+            titulo=title,
+            contexto=context,
+            tono=tone,
+            longitud=length
+        )
+        st.code(f"System: {system_prompt}\n\nUser: {prompt_preview}")
+        
         # Botones de acción para guion
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -172,20 +213,18 @@ else:
                     st.error("Debes proporcionar un título y contexto.")
                 else:
                     with st.spinner("Generando guion..."):
-                        # Aquí conectarías con tu servicio de IA
-                        # Por ahora, simularemos un retraso
+                        # Aquí conectarías con tu servicio de IA real
+                        # Por ahora, simulamos el resultado
                         time.sleep(2)
-                        generated_script = f"Este es un guion de ejemplo para '{title}' sobre '{context}' con tono {tone} y longitud {length}.\n\nAquí iría el contenido generado por la IA basado en el contexto proporcionado. El modelo {ai_model} analizaría el tema y generaría un guion coherente y estructurado para tu video.\n\nIncluiría una introducción atractiva, desarrollo de ideas principales, y una conclusión que invite a la acción."
+                        generated_script = f"[IA: {ai_model}]\n{prompt_preview}\n\nAquí iría el contenido generado por la IA."
                         current_project["script"] = generated_script
                         st.session_state.script_content = generated_script
                         current_project["status"] = "script_generated"
                         st.session_state.generation_step = 1
-        
         with col2:
             if st.button("Cargar guion desde archivo", use_container_width=True):
-                # En una app real, aquí permitirías cargar un archivo
                 st.info("Funcionalidad de carga simulada")
-                
+        
         # Mostrar o editar guion
         st.subheader("Contenido del guion")
         script_content = st.text_area(
@@ -196,7 +235,7 @@ else:
         if script_content != current_project.get("script"):
             current_project["script"] = script_content
             current_project["status"] = "script_edited"
-            
+        
         # Botón para avanzar
         if current_project.get("script"):
             if st.button("Continuar a generación de voz ▶️", use_container_width=True):
@@ -630,12 +669,12 @@ def main():
     st.sidebar.title("Navegación")
     page = st.sidebar.radio(
         "Selecciona una página",
-        ["Generador de Videos", "Configuración", "Historial"]
+        ["Generador de Videos", "Configuración de APIs", "Historial"]
     )
     
     if page == "Generador de Videos":
         batch_generator.show_batch_generator()
-    elif page == "Configuración":
+    elif page == "Configuración de APIs":
         settings.show_settings()
     elif page == "Historial":
         history.show_history()
