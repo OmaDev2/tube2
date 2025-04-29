@@ -8,7 +8,9 @@ import tempfile
 import uuid
 import base64
 from pathlib import Path
-from pages import batch_generator, settings, history
+from pages import batch_generator
+from pages import settings
+from pages import history
 
 # Importaciones simuladas de tus módulos de utilidades
 # En una implementación real, crearías estos archivos
@@ -19,7 +21,7 @@ from pages import batch_generator, settings, history
 
 # Configuración de la página (debe ser la primera llamada a Streamlit)
 st.set_page_config(
-    page_title="Video Tube Generator",
+    page_title="Video Generator",
     page_icon="🎥",
     layout="wide"
 )
@@ -624,20 +626,19 @@ if st.session_state.current_project_id:
     pass
 
 def main():
-    # Menú lateral
-    st.sidebar.title("Video Tube Generator")
+    # Sidebar navigation
+    st.sidebar.title("Navegación")
     page = st.sidebar.radio(
-        "Navegación",
+        "Selecciona una página",
         ["Generador de Videos", "Configuración", "Historial"]
     )
     
-    # Mostrar la página seleccionada
     if page == "Generador de Videos":
         batch_generator.show_batch_generator()
     elif page == "Configuración":
-        settings.show()
+        settings.show_settings()
     elif page == "Historial":
-        history.show()
+        history.show_history()
 
 if __name__ == "__main__":
     main()

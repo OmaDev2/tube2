@@ -6,6 +6,7 @@ from moviepy.editor import AudioFileClip, concatenate_audioclips
 from moviepy.audio.fx import all as afx
 from utils.transitions import TransitionEffect
 import math
+from pages.overlays_ui import show_overlays_ui
 
 def show_batch_generator():
     st.title("🎥 Generador de Videos")
@@ -81,7 +82,10 @@ def show_batch_generator():
     st.header("3. Efectos")
     effects_sequence = show_effects_ui()
     
-    # Sección 4: Audio
+    # Sección 4: Overlays
+    overlay_sequence = show_overlays_ui()
+    
+    # Sección 5: Audio
     st.header("4. Audio (Opcional)")
     col1, col2 = st.columns(2)
     
@@ -178,7 +182,7 @@ def show_batch_generator():
                     - Aumentar la duración de las transiciones
                     """)
     
-    # Sección 5: Texto
+    # Sección 6: Texto
     st.header("5. Texto (Opcional)")
     text = st.text_area("Texto a mostrar en el video")
     if text:
@@ -244,6 +248,7 @@ def show_batch_generator():
                 text_color=text_color if text else 'white',
                 text_size=text_size if text else 30,
                 effects_sequence=effects_sequence,
+                overlay_sequence=overlay_sequence,
                 fade_in_duration=fade_in_duration,
                 fade_out_duration=fade_out_duration,
                 music_volume=music_volume if background_music else 0.5,

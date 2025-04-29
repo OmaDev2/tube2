@@ -7,6 +7,7 @@ from moviepy.video.fx import all as vfx
 from moviepy.audio.fx import all as afx
 from utils.efectos import EfectosVideo
 from utils.transitions import TransitionEffect
+from utils.overlays import OverlayManager
 import os
 from typing import List, Union, Optional
 
@@ -23,14 +24,21 @@ class VideoServices:
         transition_duration: float = 1.0,
         transition_type: str = 'dissolve',
         background_music: Optional[AudioFileClip] = None,
+        voice_over: Optional[AudioFileClip] = None,
         text: Optional[str] = None,
         text_position: str = 'bottom',
         text_color: str = 'white',
         text_size: int = 30,
-        effects_sequence: Optional[List[tuple]] = None
+        effects_sequence: Optional[List[tuple]] = None,
+        overlay_sequence: Optional[List[tuple]] = None,
+        fade_in_duration: float = 1.0,
+        fade_out_duration: float = 1.0,
+        music_volume: float = 0.5,
+        music_loop: bool = True
     ) -> str:
         """Crea un video a partir de imágenes con transiciones y efectos."""
         clips = []
+        overlay_manager = OverlayManager()
         
         for i, image_path in enumerate(images):
             # Crear clip de imagen
@@ -41,6 +49,22 @@ class VideoServices:
                 effect_index = i % len(effects_sequence)
                 effect_name, effect_params = effects_sequence[effect_index]
                 clip = EfectosVideo.apply_effect(clip, effect_name, **effect_params)
+            
+            # Aplicar overlays si se proporcionan
+            if overlay_sequence:
+                # Calcular el tiempo de inicio para este clip
+                clip_start_time = i * (duration_per_image + transition_duration)
+                # Aplicar overlays que coincidan con este clip
+                for overlay_name, opacity, start_time, _ in overlay_sequence:
+                    # Si el overlay comienza durante este clip
+                    if start_time <= clip_start_time + duration_per_image:
+                        # Ajustar el tiempo de inicio relativo al clip
+                        relative_start = max(0, start_time - clip_start_time)
+                        # El overlay durará lo mismo que el clip
+                        clip = overlay_manager.apply_overlays(
+                            clip,
+                            [(overlay_name, opacity, relative_start, duration_per_image)]
+                        )
             
             # Aplicar texto si se proporciona
             if text:
@@ -57,14 +81,32 @@ class VideoServices:
             transition_duration=transition_duration
         )
         
+        # Aplicar fade in y fade out
+        if fade_in_duration > 0:
+            final_clip = final_clip.fadein(fade_in_duration)
+        if fade_out_duration > 0:
+            final_clip = final_clip.fadeout(fade_out_duration)
+        
+        # Manejar el audio
+        audio_clips = []
+        
         # Añadir música de fondo si se proporciona
         if background_music:
-            if final_clip.duration > background_music.duration:
-                # Repetir la música si es más corta que el video
+            if music_loop:
                 while background_music.duration < final_clip.duration:
                     background_music = concatenate_audioclips([background_music, background_music])
                 background_music = background_music.subclip(0, final_clip.duration)
-            final_clip = final_clip.set_audio(background_music)
+            background_music = background_music.volumex(music_volume)
+            audio_clips.append(background_music)
+        
+        # Añadir voz en off si se proporciona
+        if voice_over:
+            audio_clips.append(voice_over)
+        
+        # Combinar todos los clips de audio
+        if audio_clips:
+            final_audio = CompositeAudioClip(audio_clips)
+            final_clip = final_clip.set_audio(final_audio)
         
         # Generar nombre de archivo único
         output_path = self._get_unique_output_path()

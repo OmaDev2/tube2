@@ -1,6 +1,6 @@
 import streamlit as st
 
-def show():
+def show_settings():
     st.header("Configuración")
     st.write("Configura los parámetros de la aplicación.")
     
