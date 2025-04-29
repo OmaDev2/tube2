@@ -37,8 +37,8 @@ def show_batch_generator():
         duration_per_image = st.slider(
             "Duración por imagen (segundos)",
             min_value=1.0,
-            max_value=10.0,
-            value=3.0,
+            max_value=30.0,
+            value=10.0,
             step=0.5
         )
     
@@ -55,7 +55,8 @@ def show_batch_generator():
         transition_type = st.selectbox(
             "Tipo de transición",
             options=TransitionEffect.get_available_transitions(),
-            format_func=lambda x: "Sin transición" if x == "none" else "Disolución" if x == "dissolve" else x
+            format_func=lambda x: "Sin transición" if x == "none" else "Disolución" if x == "dissolve" else x,
+            index=1  # 'dissolve' está en la posición 1 de la lista
         )
     
     # Controles de fade in/out
@@ -91,23 +92,43 @@ def show_batch_generator():
     
     with col1:
         st.subheader("🎵 Música de Fondo")
-        background_music = st.file_uploader(
+        
+        # Subir nueva música
+        new_music = st.file_uploader(
             "Sube un archivo de música",
             type=["mp3", "wav"],
             key="background_music"
         )
         
-        if background_music:
-            music_volume = st.slider(
-                "Volumen de la música",
-                min_value=0.0,
-                max_value=0.3,
-                value=0.1,
-                step=0.01,
-                format="%.2f"
+        if new_music:
+            # Guardar en la carpeta background_music
+            music_path = os.path.join("background_music", new_music.name)
+            with open(music_path, "wb") as f:
+                f.write(new_music.getbuffer())
+            st.success(f"Música {new_music.name} guardada correctamente!")
+            st.experimental_rerun()
+        
+        # Seleccionar música de fondo
+        if os.path.exists("background_music") and os.listdir("background_music"):
+            background_music = st.selectbox(
+                "Selecciona la música de fondo",
+                options=os.listdir("background_music"),
+                format_func=lambda x: x
             )
-            normalize_music = st.checkbox("Normalizar volumen de música", value=True)
-            music_loop = st.checkbox("Repetir música", value=True)
+            
+            if background_music:
+                music_volume = st.slider(
+                    "Volumen de la música",
+                    min_value=0.0,
+                    max_value=0.3,
+                    value=0.1,
+                    step=0.01,
+                    format="%.2f"
+                )
+                normalize_music = st.checkbox("Normalizar volumen de música", value=True)
+                music_loop = st.checkbox("Repetir música", value=True)
+        else:
+            background_music = None
     
     with col2:
         st.subheader("🎤 Voz en Off")
@@ -216,10 +237,8 @@ def show_batch_generator():
             # Procesar música de fondo si se proporciona
             background_music_clip = None
             if background_music:
-                temp_audio = os.path.join("temp", background_music.name)
-                with open(temp_audio, "wb") as f:
-                    f.write(background_music.getbuffer())
-                background_music_clip = AudioFileClip(temp_audio)
+                music_path = os.path.join("background_music", background_music)
+                background_music_clip = AudioFileClip(music_path)
                 if normalize_music:
                     background_music_clip = afx.audio_normalize(background_music_clip)
                 background_music_clip = background_music_clip.volumex(music_volume)
@@ -259,7 +278,7 @@ def show_batch_generator():
             for temp_file in temp_images:
                 os.remove(temp_file)
             if background_music:
-                os.remove(temp_audio)
+                os.remove(music_path)
             if voice_over:
                 os.remove(temp_voice)
             
