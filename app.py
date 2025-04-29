@@ -8,6 +8,7 @@ import tempfile
 import uuid
 import base64
 from pathlib import Path
+from pages import batch_generator, settings, history
 
 # Importaciones simuladas de tus módulos de utilidades
 # En una implementación real, crearías estos archivos
@@ -16,12 +17,11 @@ from pathlib import Path
 #from utils.video_services import create_video, add_transitions
 #from utils.storage import save_project, load_project, get_all_projects
 
-# Configuración de la página
+# Configuración de la página (debe ser la primera llamada a Streamlit)
 st.set_page_config(
-    page_title="Generador Automático de Videos",
-    page_icon="🎬",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Video Tube Generator",
+    page_icon="🎥",
+    layout="wide"
 )
 
 # Inicializar estado de sesión si no existe
@@ -622,3 +622,22 @@ st.caption(f"VideoGen AI - Proyecto: {st.session_state.current_project_id[:8] if
 if st.session_state.current_project_id:
     # En una aplicación real, aquí guardarías los datos en Firebase o localmente
     pass
+
+def main():
+    # Menú lateral
+    st.sidebar.title("Video Tube Generator")
+    page = st.sidebar.radio(
+        "Navegación",
+        ["Generador de Videos", "Configuración", "Historial"]
+    )
+    
+    # Mostrar la página seleccionada
+    if page == "Generador de Videos":
+        batch_generator.show_batch_generator()
+    elif page == "Configuración":
+        settings.show()
+    elif page == "Historial":
+        history.show()
+
+if __name__ == "__main__":
+    main()
