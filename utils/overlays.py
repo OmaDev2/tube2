@@ -39,39 +39,102 @@ class VideoOverlay:
         return CompositeVideoClip([base_clip, overlay])
 
 class OverlayManager:
-    def __init__(self, overlays_dir: str = "overlays"):
-        self.overlays_dir = overlays_dir
-        self.overlays = {}
-        self._load_overlays()
-    
-    def _load_overlays(self):
+    def __init__(self):
+        self.overlays_dir = "overlays"
         if not os.path.exists(self.overlays_dir):
             os.makedirs(self.overlays_dir)
-            return
-        
-        for filename in os.listdir(self.overlays_dir):
-            if filename.endswith(('.mp4', '.mov', '.avi')):
-                name = os.path.splitext(filename)[0]
-                path = os.path.join(self.overlays_dir, filename)
-                self.overlays[name] = VideoOverlay(name, path)
     
     def get_available_overlays(self) -> List[str]:
-        return list(self.overlays.keys())
+        """Obtiene la lista de overlays disponibles."""
+        if not os.path.exists(self.overlays_dir):
+            return []
+        return [f for f in os.listdir(self.overlays_dir) 
+                if f.endswith(('.mp4', '.mov', '.avi', '.webm'))]
     
-    def apply_overlays(self, base_clip, overlay_sequence: List[Tuple[str, float, float, Optional[float]]]) -> VideoFileClip:
-        """
-        Aplica una secuencia de overlays al video base.
+    def has_alpha_channel(self, video_path: str) -> bool:
+        """Detecta si un video tiene canal alpha."""
+        try:
+            # Intentar leer el video con OpenCV
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return False
+                
+            # Leer varios frames para asegurarnos
+            for _ in range(5):  # Intentar con los primeros 5 frames
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+                    
+                # Verificar si el frame tiene 4 canales (RGBA)
+                if len(frame.shape) == 3 and frame.shape[2] == 4:
+                    cap.release()
+                    return True
+                    
+            cap.release()
+            return False
+        except Exception as e:
+            print(f"Error al detectar canal alpha: {e}")
+            return False
+    
+    def optimize_overlay(self, overlay_clip: VideoFileClip, has_alpha: bool) -> VideoFileClip:
+        """Optimiza el overlay según si tiene canal alpha o no."""
+        if has_alpha:
+            # Para overlays con alpha, mantenemos la transparencia original
+            return overlay_clip
+        else:
+            # Para overlays sin alpha, aplicamos una máscara de luminosidad
+            def make_mask(frame):
+                # Convertir a escala de grises
+                gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+                # Normalizar
+                mask = gray.astype(float) / 255.0
+                return mask
+            return overlay_clip.set_mask(overlay_clip.fl_image(make_mask))
+    
+    def apply_overlays(
+        self,
+        base_clip: VideoFileClip,
+        overlays: List[Tuple[str, float, float, float]]
+    ) -> VideoFileClip:
+        """Aplica una lista de overlays al clip base."""
+        if not overlays:
+            return base_clip
         
-        Args:
-            base_clip: Video base al que aplicar los overlays
-            overlay_sequence: Lista de tuplas (nombre_overlay, opacidad, tiempo_inicio, duración)
+        overlay_clips = []
         
-        Returns:
-            VideoFileClip con los overlays aplicados
-        """
-        result = base_clip
-        for overlay_name, opacity, start_time, duration in overlay_sequence:
-            if overlay_name in self.overlays:
-                overlay = self.overlays[overlay_name]
-                result = overlay.apply(result, opacity, start_time, duration)
-        return result 
+        for overlay_name, opacity, start_time, duration in overlays:
+            overlay_path = os.path.join(self.overlays_dir, overlay_name)
+            if not os.path.exists(overlay_path):
+                print(f"Overlay no encontrado: {overlay_path}")
+                continue
+            
+            try:
+                # Cargar el overlay
+                overlay_clip = VideoFileClip(overlay_path)
+                
+                # Detectar si tiene canal alpha
+                has_alpha = self.has_alpha_channel(overlay_path)
+                print(f"Overlay {overlay_name} - Tiene alpha: {has_alpha}")
+                
+                # Optimizar el overlay según su tipo
+                overlay_clip = self.optimize_overlay(overlay_clip, has_alpha)
+                
+                # Ajustar la duración y el tiempo de inicio
+                overlay_clip = overlay_clip.set_start(start_time).set_duration(duration)
+                
+                # Aplicar la opacidad
+                if opacity < 1.0:
+                    overlay_clip = overlay_clip.set_opacity(opacity)
+                
+                overlay_clips.append(overlay_clip)
+                
+            except Exception as e:
+                print(f"Error al procesar overlay {overlay_name}: {e}")
+                continue
+        
+        if not overlay_clips:
+            return base_clip
+        
+        # Combinar todos los overlays con el clip base
+        final_clip = CompositeVideoClip([base_clip] + overlay_clips)
+        return final_clip 
