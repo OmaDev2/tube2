@@ -2,8 +2,10 @@ import streamlit as st
 import os
 from utils.video_services import VideoServices
 from pages.efectos_ui import show_effects_ui
-from moviepy.editor import AudioFileClip
+from moviepy.editor import AudioFileClip, concatenate_audioclips
+from moviepy.audio.fx import all as afx
 from utils.transitions import TransitionEffect
+import math
 
 def show_batch_generator():
     st.title("🎥 Generador de Videos")
@@ -22,6 +24,9 @@ def show_batch_generator():
     if not uploaded_images:
         st.warning("Por favor, carga al menos una imagen.")
         return
+    
+    # Ordenar imágenes alfabéticamente
+    uploaded_images = sorted(uploaded_images, key=lambda x: x.name)
     
     # Sección 2: Configuración del video
     st.header("2. Configuración del Video")
@@ -52,17 +57,126 @@ def show_batch_generator():
             format_func=lambda x: "Sin transición" if x == "none" else "Disolución" if x == "dissolve" else x
         )
     
+    # Controles de fade in/out
+    st.subheader("Efectos de entrada y salida")
+    col1, col2 = st.columns(2)
+    with col1:
+        fade_in_duration = st.slider(
+            "Fade In (segundos)",
+            min_value=0.0,
+            max_value=2.0,
+            value=1.0,
+            step=0.1
+        )
+    with col2:
+        fade_out_duration = st.slider(
+            "Fade Out (segundos)",
+            min_value=0.0,
+            max_value=2.0,
+            value=1.0,
+            step=0.1
+        )
+    
     # Sección 3: Efectos
     st.header("3. Efectos")
     effects_sequence = show_effects_ui()
     
     # Sección 4: Audio
     st.header("4. Audio (Opcional)")
-    background_music = st.file_uploader(
-        "Música de fondo",
-        type=["mp3", "wav"],
-        accept_multiple_files=False
-    )
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🎵 Música de Fondo")
+        background_music = st.file_uploader(
+            "Sube un archivo de música",
+            type=["mp3", "wav"],
+            key="background_music"
+        )
+        
+        if background_music:
+            music_volume = st.slider(
+                "Volumen de la música",
+                min_value=0.0,
+                max_value=0.3,
+                value=0.1,
+                step=0.01,
+                format="%.2f"
+            )
+            normalize_music = st.checkbox("Normalizar volumen de música", value=True)
+            music_loop = st.checkbox("Repetir música", value=True)
+    
+    with col2:
+        st.subheader("🎤 Voz en Off")
+        voice_over = st.file_uploader(
+            "Sube un archivo de voz",
+            type=["mp3", "wav"],
+            key="voice_over"
+        )
+        
+        if voice_over:
+            voice_volume = st.slider(
+                "Volumen de la voz",
+                min_value=0.0,
+                max_value=2.0,
+                value=1.0,
+                step=0.1
+            )
+            normalize_voice = st.checkbox("Normalizar volumen de voz", value=True)
+            
+            # Calcular duración del video
+            video_duration = len(uploaded_images) * duration_per_image
+            if transition_type != "none":
+                video_duration += (len(uploaded_images) - 1) * transition_duration
+            
+            # Calcular duración del audio
+            temp_voice = os.path.join("temp", voice_over.name)
+            with open(temp_voice, "wb") as f:
+                f.write(voice_over.getbuffer())
+            voice_clip = AudioFileClip(temp_voice)
+            audio_duration = voice_clip.duration
+            os.remove(temp_voice)
+            
+            # Mostrar información de duración
+            st.info(f"""
+            Duración del video: {video_duration:.1f} segundos
+            Duración del audio: {audio_duration:.1f} segundos
+            Diferencia: {abs(video_duration - audio_duration):.1f} segundos
+            """)
+            
+            if video_duration < audio_duration:
+                st.warning("⚠️ El video es más corto que el audio. Considera:")
+                
+                # Calcular duración necesaria por imagen
+                needed_duration = (audio_duration - ((len(uploaded_images) - 1) * transition_duration)) / len(uploaded_images)
+                
+                # Opción de ajuste automático
+                auto_adjust = st.checkbox("Ajustar duración automáticamente", value=False)
+                if auto_adjust:
+                    duration_per_image = needed_duration
+                    st.success(f"Duración por imagen ajustada a {needed_duration:.1f} segundos")
+                else:
+                    st.markdown(f"""
+                    - Aumentar la duración por imagen a **{needed_duration:.1f}** segundos
+                    - Añadir **{math.ceil((audio_duration - video_duration) / duration_per_image)}** imágenes más
+                    - Reducir la duración de las transiciones
+                    """)
+            elif video_duration > audio_duration * 1.1:  # 10% más largo
+                st.warning("⚠️ El video es significativamente más largo que el audio. Considera:")
+                
+                # Calcular duración óptima por imagen
+                optimal_duration = (audio_duration - ((len(uploaded_images) - 1) * transition_duration)) / len(uploaded_images)
+                
+                # Opción de ajuste automático
+                auto_adjust = st.checkbox("Ajustar duración automáticamente", value=False)
+                if auto_adjust:
+                    duration_per_image = optimal_duration
+                    st.success(f"Duración por imagen ajustada a {optimal_duration:.1f} segundos")
+                else:
+                    st.markdown(f"""
+                    - Reducir la duración por imagen a **{optimal_duration:.1f}** segundos
+                    - Eliminar **{math.floor((video_duration - audio_duration) / duration_per_image)}** imágenes
+                    - Aumentar la duración de las transiciones
+                    """)
     
     # Sección 5: Texto
     st.header("5. Texto (Opcional)")
@@ -102,6 +216,20 @@ def show_batch_generator():
                 with open(temp_audio, "wb") as f:
                     f.write(background_music.getbuffer())
                 background_music_clip = AudioFileClip(temp_audio)
+                if normalize_music:
+                    background_music_clip = afx.audio_normalize(background_music_clip)
+                background_music_clip = background_music_clip.volumex(music_volume)
+            
+            # Procesar voz en off si se proporciona
+            voice_over_clip = None
+            if voice_over:
+                temp_voice = os.path.join("temp", voice_over.name)
+                with open(temp_voice, "wb") as f:
+                    f.write(voice_over.getbuffer())
+                voice_over_clip = AudioFileClip(temp_voice)
+                if normalize_voice:
+                    voice_over_clip = afx.audio_normalize(voice_over_clip)
+                voice_over_clip = voice_over_clip.volumex(voice_volume)
             
             # Crear el video
             output_path = video_service.create_video_from_images(
@@ -110,11 +238,16 @@ def show_batch_generator():
                 transition_duration=transition_duration,
                 transition_type=transition_type,
                 background_music=background_music_clip,
+                voice_over=voice_over_clip,
                 text=text if text else None,
                 text_position=text_position if text else 'bottom',
                 text_color=text_color if text else 'white',
                 text_size=text_size if text else 30,
-                effects_sequence=effects_sequence
+                effects_sequence=effects_sequence,
+                fade_in_duration=fade_in_duration,
+                fade_out_duration=fade_out_duration,
+                music_volume=music_volume if background_music else 0.5,
+                music_loop=music_loop if background_music else True
             )
             
             # Limpiar archivos temporales
@@ -122,6 +255,8 @@ def show_batch_generator():
                 os.remove(temp_file)
             if background_music:
                 os.remove(temp_audio)
+            if voice_over:
+                os.remove(temp_voice)
             
             # Mostrar el video generado
             st.video(output_path)
