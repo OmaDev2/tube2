@@ -85,6 +85,12 @@ def show_batch_generator():
     
     # Sección 4: Overlays
     overlay_sequence = show_overlays_ui()
+    # Asegurar que la duración de cada overlay sea igual a la duración de la imagen
+    if overlay_sequence:
+        overlay_sequence = [
+            (name, opacity, start, duration_per_image)
+            for name, opacity, start, _ in overlay_sequence
+        ]
     
     # Sección 5: Audio
     st.header("4. Audio (Opcional)")

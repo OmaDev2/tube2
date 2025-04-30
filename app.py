@@ -11,6 +11,7 @@ from pathlib import Path
 from pages import batch_generator
 from pages import settings
 from pages import history
+from utils.ai_services import generate_gemini_script, list_gemini_models
 
 # Importaciones simuladas de tus módulos de utilidades
 # En una implementación real, crearías estos archivos
@@ -154,9 +155,12 @@ else:
         with col2:
             # Opciones de generación
             st.subheader("Opciones")
+            gemini_models = [m[0] for m in list_gemini_models() if "generateContent" in m[1]]
+            if not gemini_models:
+                gemini_models = ["models/gemini-pro"]
             ai_model = st.selectbox(
                 "Modelo IA para guion",
-                ["gemini-pro", "gpt-3.5-turbo", "gpt-4", "claude-instant", "llama3 (local)"],
+                gemini_models + ["gpt-3.5-turbo", "gpt-4", "claude-instant", "llama3 (local)"],
                 index=0
             )
             tone = st.select_slider(
@@ -213,10 +217,15 @@ else:
                     st.error("Debes proporcionar un título y contexto.")
                 else:
                     with st.spinner("Generando guion..."):
-                        # Aquí conectarías con tu servicio de IA real
-                        # Por ahora, simulamos el resultado
-                        time.sleep(2)
-                        generated_script = f"[IA: {ai_model}]\n{prompt_preview}\n\nAquí iría el contenido generado por la IA."
+                        if "gemini" in ai_model:
+                            generated_script = generate_gemini_script(system_prompt, prompt_preview, model=ai_model)
+                            print(f"[DEBUG] Respuesta Gemini: {generated_script}")
+                            if "[ERROR]" in generated_script:
+                                st.error(f"Error al llamar a Gemini: {generated_script}")
+                        else:
+                            # Simulación para otros modelos
+                            time.sleep(2)
+                            generated_script = f"[IA: {ai_model}]\n{prompt_preview}\n\nAquí iría el contenido generado por la IA."
                         current_project["script"] = generated_script
                         st.session_state.script_content = generated_script
                         current_project["status"] = "script_generated"

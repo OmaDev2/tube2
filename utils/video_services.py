@@ -50,21 +50,15 @@ class VideoServices:
                 effect_name, effect_params = effects_sequence[effect_index]
                 clip = EfectosVideo.apply_effect(clip, effect_name, **effect_params)
             
-            # Aplicar overlays si se proporcionan
+            # Aplicar overlays de forma cíclica si se proporcionan
             if overlay_sequence:
-                # Calcular el tiempo de inicio para este clip
-                clip_start_time = i * (duration_per_image + transition_duration)
-                # Aplicar overlays que coincidan con este clip
-                for overlay_name, opacity, start_time, _ in overlay_sequence:
-                    # Si el overlay comienza durante este clip
-                    if start_time <= clip_start_time + duration_per_image:
-                        # Ajustar el tiempo de inicio relativo al clip
-                        relative_start = max(0, start_time - clip_start_time)
-                        # El overlay durará lo mismo que el clip
-                        clip = overlay_manager.apply_overlays(
-                            clip,
-                            [(overlay_name, opacity, relative_start, duration_per_image)]
-                        )
+                overlay_index = i % len(overlay_sequence)
+                overlay_name, opacity, start_time, duration = overlay_sequence[overlay_index]
+                print(f"[DEBUG] Aplicando overlay: {overlay_name}, opacidad: {opacity}, start_time: {start_time}, duration: {duration_per_image} a la imagen {i} ({image_path})")
+                clip = overlay_manager.apply_overlays(
+                    clip,
+                    [(overlay_name, opacity, 0, duration_per_image)]
+                )
             
             # Aplicar texto si se proporciona
             if text:

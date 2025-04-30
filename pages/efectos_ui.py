@@ -44,6 +44,7 @@ def show_effects_ui():
         "Efectos (se aplicarán en orden)",
         list(efectos_disponibles.keys()),
         format_func=lambda x: efectos_disponibles[x],
+        default=["zoom_in", "zoom_out"],  # Efectos seleccionados por defecto
         key="efectos_secuencia"
     )
     
